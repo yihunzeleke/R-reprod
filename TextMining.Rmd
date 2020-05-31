@@ -1,0 +1,505 @@
+---
+title: "Text Mining"
+author: "yihun"
+date: "5/29/2020"
+
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      warning = FALSE,
+                      message = FALSE,
+                      comment = FALSE)
+```
+## Chapter 1
+Tidy text formats as being a table with one-token-per-row. Structuring text data i this way means that it conforms to tidy data principles and can be manipulated with a set of consistent tools. This is worth contrasting with the ways text i often stored in text mining approaches.   
+
+ * String : Text can, of course, be stored as strings. 
+ * Corpus: Raw strings annotated with additional metadata and details.  
+ * Document-term matrix: Sparse matrix describing a collection of documents.  
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidytext)
+theme_set(theme_bw())
+```
+
+### `unnes_tokens`
+
+```{r}
+text <- c("Because I could not stop for Death -",
+          "He kindly stopped for me -",
+          "The Carriage held but just Ourselves -",
+          "and Immortality")
+
+text
+```
+
+This is a typical character vector that we might want to analyze. In order to turn it into a tidy text dataset, we first need to put it into a data frame.
+
+
+```{r}
+text_df <- tibble( line = 1:4,text= text)
+```
+
+> A token is a meaningful unit of text, most often a word, that we are interested in using for further analysis, and tokenization is the process of splitting text into tokens.
+
+```{r}
+text_df %>%
+  unnest_tokens(word, text) 
+```
+
+*The two basic arguments to `unnest_tokens` used her are column names. First we have the output column names.*  
+
+### Tyding the work fo Jane Austen
+
+```{r}
+# install.packages("janeaustenr")
+
+library(janeaustenr)
+library(stringr)
+
+original_books <- austen_books() %>% 
+  group_by(book) %>%
+  mutate(linenumber = row_number(),
+         chapter = cumsum(str_detect(text, regex("^chapter [\\divxlc]",
+                                                 ignore_case = TRUE)))) %>% 
+  ungroup()
+  
+  
+original_books
+```
+
+ To work with the above dataset, we need to restructure it in the one-token-per-row format.
+```{r}
+tidy_books <- original_books %>%
+  unnest_tokens(word, text)
+  
+tidy_books
+
+```
+
+### Data Cleaning 
+
+```{r}
+# Remove stop words 
+data("stop_words")
+
+tidy_books <- tidy_books %>% 
+  anti_join(stop_words)
+
+tidy_books %>% 
+  count(word, sort = TRUE)
+```
+
+### Visualization 
+
+```{r}
+tidy_books %>% 
+  count(word, sort= TRUE) %>% 
+  filter(n > 600) %>% 
+  mutate(word = reorder(word, n)) %>% 
+  ggplot(aes(word, n))+
+  geom_col()+
+  xlab(NULL)+
+  coord_flip()
+  
+```
+
+
+Now we may need to perform cleaning of text data, such as removing copyright headers or formatting.
+
+```{r}
+library(gutenbergr)
+
+ # Getting H.G. Wells from the project
+hgwell <- gutenberg_download(c(35,36, 5230,159))
+
+tidy_hgwell <- hgwell %>% 
+  unnest_tokens(word, text) %>% 
+  anti_join(stop_words)
+
+```
+
+### What are most common words in H.G. Wells?
+```{r}
+count(tidy_hgwell, word, sort=TRUE)
+```
+
+```{r}
+# Getting some well-known works of the Bronte sisters from the gutenberg project
+
+bronte <- gutenberg_download(c(1260, 768, 969, 9182, 767))
+
+tidy_bronte <- bronte %>% 
+  unnest_tokens(word, text) %>% 
+  anti_join(stop_words)
+
+tidy_bronte %>% 
+  count(word, sort= TRUE)
+```
+
+### Calculate the frequency for each word for the works of Jan Austen, Bronte sisters and H.G. Wells.
+```{r}
+library(tidyr)
+frequncy <- bind_rows(mutate(tidy_bronte, author = "Bronte Sisters"),
+                      mutate(tidy_hgwell, author = "H.G. Wells"),
+                      mutate(tidy_books, author = "Jane Austen")) %>% 
+  mutate(word = str_extract(word,"[a-z]+")) %>% 
+  count(author, word) %>% 
+  group_by(author) %>% 
+  mutate(proportion = n/sum(n)) %>% 
+  select(-n) %>% 
+  spread(author, proportion) %>% 
+  gather(author , proportion, `Bronte Sisters` : `H.G. Wells`)
+
+```
+
+```{r}
+library(scales)
+
+ggplot(frequncy, aes(x = proportion, y = `Jane Austen`, color = abs(`Jane Austen`- proportion)))+
+  geom_abline(color = "gray6 ", lty = 2)+
+  geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3)+
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5)+
+  scale_x_log10(labels = percent_format())+
+  scale_y_log10(labels = percent_format())+
+  scale_color_gradient(limits = c(0,0.001), low = "darkslategray4", high = "gray75")+
+  facet_wrap(~ author, ncol = 2)+
+  theme(legend.position = "none")+
+  labs(y = "Jan Ausen", x = NULL)
+```
+
+
+Words that are close to the line in these plots have similar frequencies in both sets of texts, for example, in both Austen and Brontë texts (“miss”, “time”, “day” at the upper frequency end) or in both Austen and Wells texts (“time”, “day”, “brother” at the high frequency end). Words that are far from the line are words that are found more in one set of texts than another. For example, in the Austen-Brontë panel, words like “elizabeth”, “emma”, and “fanny” (all proper nouns) are found in Austen’s texts but not much in the Brontë texts, while words like “arthur” and “dog” are found in the Brontë texts but not the Austen texts. In comparing H.G. Wells with Jane Austen, Wells uses words like “beast”, “guns”, “feet”, and “black” that Austen does not, while Austen uses words like “family”, “friend”, “letter”, and “dear” that Wells does not.   
+
+Words in the Austen-Brontë panel are closer to the zero-slope line than in the Austen-Wells panel. Also notice that the words extend to lower frequencies in the Austen-Brontë panel; there is empty space in the Austen-Wells panel at low frequency. These characteristics indicate that Austen and the Brontë sisters use more similar words than Austen and H.G. Wells. Also, we see that not all the words are found in all three sets of texts and there are fewer data points in the panel for Austen and H.G. Wells.  
+
+
+> Let’s quantify how similar and different these sets of word frequencies are using a correlation test. How correlated are the word frequencies between Austen and the Brontë sisters, and between Austen and Wells?  
+
+```{r}
+cor.test(data  = frequncy[frequncy$author == "Bronte Sisters",], ~ proportion + `Jane Austen`)
+```
+
+Just as we saw in the plots, the word frequencies are more correlated between the Austen and Brontë novels than between Austen and H.G. Wells.
+
+## Chapter 2
+
+One way to analyze the sentiment of a text is to consider the text as a combination of its individual words and the sentiment content of the whole text as the sum of the sentiment of the content of the individual words.
+
+### The `sentiment` dataset
+There are a variety of methods and discussions and dictionaries that exists for evaluating the opinion or emotion in text.   
+
+ * `AFINN` from the Finn Arup Nielsen  
+ * `bing` from Bing Liu and collaborators  
+ * `nrc` from Saif Mohammad and Peter Turney  
+ 
+```{r}
+library(textdata)
+get_sentiments("afinn")
+get_sentiments("nrc")
+
+```
+ 
+Let’s look at the words with a joy score from the NRC lexicon. What are the most common joy words in Emma? First, we need to take the text of the novels and convert the text to the tidy format using `unnest_tokens()`, just as we did in Section 1.3. Let’s also set up some other columns to keep track of which line and chapter of the book each word comes from; we use `group_by` and `mutate` to construct those columns.  
+
+
+
+```{r}
+library(janeaustenr)
+library(stringr)
+library(dplyr)
+
+tidy_books <- austen_books() %>% 
+  group_by(book) %>% 
+  mutate(linenumber = row_number(),
+         chapter = cumsum(str_detect(text, regex("^chapter [\\divxlc]",
+                                                 ignore_case = TRUE)))) %>% 
+  ungroup() %>% 
+  unnest_tokens(word, text)
+```
+
+
+Now let's use the `nrc` lexicon and `filter()` for the joy words. Next let's filter the data frame with the text from the book the words from Emma and then use `inner_join` to perform the sentiment analysis.
+
+```{r}
+
+nrc_joy <- get_sentiments("nrc") %>% 
+  filter(sentiment == "joy")
+
+# Joining the two data frames
+
+tidy_books %>% 
+  filter(book == "Emma") %>% 
+  inner_join(nrc_joy) %>% 
+  count(word , sort = TRUE)
+```
+
+Small sections of text may not have enough words in them to get a good estimate of sentiment while really large sections can wash out narrative structure. For these books, using lines works well, but this can vary depending on individual texts, how long the lines were to start with, etc.
+
+```{r}
+library(tidyr)
+jane_austen_sentiment <- tidy_books %>% 
+  inner_join(get_sentiments("bing")) %>% 
+  count(book , index = linenumber %/% 80, sentiment) %>% 
+  spread(sentiment , n , fill = 0 ) %>% 
+  mutate(sentiment = positive - negative)
+
+```
+### Visualization 
+```{r}
+ggplot(jane_austen_sentiment, aes(index, sentiment, fill = book))+
+  geom_col(show.legend = FALSE)+
+  facet_wrap( ~ book, ncol = 2, scales = "free_x")
+
+```
+
+Comparing the three sentiment dictionaries   
+With several options for sentiment lexicons, we might want some more information on which one is appropriate for your purposes. Let's use all three sentiment lexicons and examine how the sentiment changes across the narrative arc of Pride and Prejudice.
+
+```{r}
+pride_prejudice <- tidy_books %>% 
+  filter(book == "Pride & Prejudice")
+
+pride_prejudice
+```
+
+> Remember from above that the AFINN lexicon measures sentiment with a numeric score between -5 and 5, while the other two lexicons categorize words in a binary fashion, either positive or negative. To find a sentiment score in chunks of text throughout the novel, we will need to use a different pattern for the AFINN lexicon than for the other two. 
+
+```{r}
+afinn <- pride_prejudice %>% 
+  inner_join(get_sentiments("afinn")) %>% 
+  group_by(index = linenumber %/% 80) %>% 
+  summarise(sentiment = sum(value)) %>% 
+  mutate(method = "AFINN")
+
+bing_and_nrc <- bind_rows(pride_prejudice %>% 
+                        inner_join(get_sentiments("bing")) %>%
+                        mutate(method = "Bing et al."),
+                        pride_prejudice %>% 
+                        inner_join(get_sentiments("nrc") %>% 
+                        filter(sentiment %in% c("positive", "negative"))) %>%
+                        mutate(method = "NRC")) %>%                                        
+  count(method, index = linenumber %/% 80, sentiment) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)
+
+```
+
+```{r}
+
+bind_rows(afinn, 
+          bing_and_nrc) %>%
+  ggplot(aes(index, sentiment, fill = method)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~method, ncol = 1, scales = "free_y")
+
+```
+
+
+### Most common positive and negative words
+
+One advantage of having the data frame with both sentiment and word is that we can analyze word counts that contribute to each sentiment. By implementing `count()` here with arguments of both `word` and `sentiment`, we find out how much each word contributed to each sentiment . 
+
+```{r}
+bing_word_counts <- tidy_books %>% 
+  inner_join(get_sentiments("bing")) %>% 
+  count(word, sentiment, sort = TRUE) %>% 
+  ungroup()
+bing_word_counts
+```
+
+
+```{r}
+bing_word_counts %>% 
+  group_by(sentiment) %>% 
+  top_n(10) %>% 
+  ungroup() %>% 
+  mutate(word = reorder(word, n)) %>% 
+  ggplot(aes(word, n, fill = sentiment))+
+  geom_col(show.legend = FALSE)+
+  facet_wrap( ~ sentiment,scales = "free_y")+
+  labs(y = "Contribution to Sentiment",
+       x = NULL)+
+  coord_flip()
+```
+
+
+Lets us spot an anomaly in the sentiment analysis; the word “miss” is coded as negative but it is used as a title for young, unmarried women in Jane Austen’s works. If it were appropriate for our purposes, we could easily add “miss” to a custom stop-words list using bind_rows(). We could implement that with a strategy such as this.
+
+```{r}
+custom_stop_words <- bind_rows(tibble(word = c("miss"), 
+                                     lexicon = c("custom")),stop_words)
+                                   
+
+custom_stop_words
+
+library(wordcloud)
+
+tidy_books %>%
+  anti_join(stop_words) %>%
+  count(word) %>%
+  with(wordcloud(word, n, max.words = 100))
+```
+
+
+## Chapte 3
+
+### tf-idf
+
+> The statistic tf-idf is intended to measure how important a word is to a document in a collection (or corpus) of documents, for example, to one novel in a collection of novels or to one website in a collection of websites.
+
+```{r}
+library(dplyr)
+library(tidytext)
+library(janeaustenr)
+
+book_words <- austen_books() %>% 
+  unnest_tokens(word, text) %>% 
+  count(book, word, sort = TRUE)
+
+total_words <- book_words %>% 
+  group_by(book) %>% 
+  summarise(total = sum(n))
+
+book_words <- left_join(book_words, total_words)
+
+library(ggplot2)
+
+ggplot(book_words, aes(n/total, fill = book)) +
+  geom_histogram(show.legend = FALSE)+
+  xlim(NA,0.0009)+
+  facet_wrap( ~ book, ncol = 2, scales = "free_y")
+
+
+```
+
+### Zipf's law
+> Zipf’s law states that the frequency that a word appears is inversely proportional to its rank.
+
+```{r}
+freq_by_rank <-  book_words %>% 
+  group_by(book) %>% 
+  mutate(rank = row_number(),
+         `term frequency` = n/total)
+freq_by_rank
+
+
+```
+
+The `rank` column here tells us the rank each word within the frequency table; the table was already ordered by `n` so we could use `row_number()` find the rank.
+
+```{r}
+freq_by_rank %>% 
+  ggplot(aes(rank, `term frequency`, color = book))+
+  geom_line(size = 1.1, alpha = 0.8, show.legend = FALSE)+
+  scale_x_log10()+
+  scale_y_log10()
+```
+
+
+We see that all six of Jane Austen's novels are similar to each other, and that the relationship between rank and frequency does have negative slope. 
+
+```{r}
+rank_subset <- freq_by_rank %>% 
+  filter(rank < 500,
+         rank > 10)
+
+lm(log10(`term frequency`) ~ log10(rank), data = rank_subset)
+```
+
+Classic version of Zipf's law have:   
+
+frequency $\alpha \frac{1}{rank}$
+
+```{r}
+freq_by_rank %>% 
+  ggplot(aes(rank, `term frequency`, color = book))+
+  geom_abline(intercept = -0.6226, slope = -1.1125, color = "gray50", linetype = 2)+
+  geom_line(size = 1.1, alpha = 0.8, show.legend = FALSE)+
+  scale_x_log10()+
+  scale_y_log10()
+```
+
+
+
+### The `bind_tf_idf` function
+
+The idea of tf_idf is to find the important words for the content of each documentary by decreasing the weight for commonly used words and increasing the weight for words that are not used very much in a collection of corpus of documents.  
+
+The `bind_tf_idf` function in the tidytext package takes a tidy dataset as input with one row per token (term) per document. One column (word) here contains the terms/tokens,one column contains the documents (book) in this case and the last necessary column contains the counts how many times each document contains each term (n in this example).
+
+```{r}
+book_words <- book_words %>% 
+  bind_tf_idf(word, book,n)
+```
+
+Notice that idf and thus tf-idf are zero for these extremely common words. These are all words that appear in all six of Jane Austen's novels, so the idf term (which the natural log of 1) is zero. The inverse of document frequency (tf-idf) for words that occur in many of the documents in a collection, this is how this approach decreases the weight for common words. The invere document frequency will be a higher for words that occur in fewer of the documents in the collection.
+
+```{r}
+book_words %>% 
+  select(-total) %>% 
+  arrange(desc(tf_idf))
+```
+
+> Some of the values for idf are the same for different terms because there are 6 documents in this corpus and we are seeing the numerical value for ln(6/1), ln(6/2) etc.
+
+```{r}
+book_words %>% 
+  arrange(desc(tf_idf)) %>% 
+  mutate(word = factor(word , levels = rev(unique(word)))) %>% 
+  group_by(book) %>% 
+  top_n(15) %>% 
+  ungroup() %>% 
+  ggplot(aes(word, tf_idf, fill = book))+
+  geom_col(show.legend = FALSE)+
+  labs(x = NULL, y = "tf-idf")+
+  facet_wrap( ~ book, ncol = 2, scales = "free")+
+  coord_flip()
+  
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
