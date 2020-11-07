@@ -1,0 +1,67 @@
+---
+title: "Untitled"
+author: "Yihun Zeleke"
+date: "10/14/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+library(tidyverse)
+library(rvest)
+# GadgeSelector chrome Extension
+```
+
+```{r}
+site_to_scrape <- read_html("http://quotes.toscrape.com")
+content <- site_to_scrape %>% 
+  html_nodes(".text") %>% 
+html_text()
+```
+The web page has different pages. so we need to for loop through the web pages.
+
+```{r}
+for (i in 2:4){
+  site_to_scrape <- read_html(paste0("http://quotes.toscrape.com/page/",i))
+  
+  temp <- site_to_scrape %>% 
+    html_nodes(".text") %>% 
+    html_text()
+  content <- append(content,temp)
+
+}
+write.csv(content, "content.csv", row.names = FALSE)
+```
+
+Amazon website web scraping
+
+```{r}
+site_to_scrape <- read_html("https://www.amazon.com/s?k=shirts&ref=nb_sb_noss")
+content <- site_to_scrape %>% 
+html_nodes(".a-text-normal .a-text-normal") %>% 
+html_text()
+
+for (i in 2:4){
+  site_to_scrape <- read_html(paste0("http://quotes.toscrape.com/page/",i))
+  
+  temp <- site_to_scrape %>% 
+    html_nodes(".a-text-normal .a-text-normal") %>% 
+    html_text()
+  content <- append(content,temp)
+
+}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+

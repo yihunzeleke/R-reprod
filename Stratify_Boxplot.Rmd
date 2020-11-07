@@ -1,0 +1,273 @@
+---
+title: "Stratify and Boxplot"
+author: "Yihun Zeleke"
+date: "10/13/2020"
+output: 
+  html_document: 
+    highlight: textmate
+    theme: yeti
+    toc: yes
+    number_sections: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+The histogram does not show us if the two groups of categorical variables. To see the distributions by the categorical variable we stratify by that categorical variable.
+
+```{r}
+library(tidyverse)
+library(dslabs)
+data("gapminder")
+
+```
+
+**Boxplot**
+
+```{r}
+gapminder <- gapminder %>% 
+  mutate(dollar_per_day = gdp/population/365)
+p <- gapminder %>% 
+   filter(year == 1970 & !is.na(gdp)) %>% 
+  ggplot(aes(region, dollar_per_day))+
+  geom_boxplot()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+p
+```
+
+<br> Let's `reorder()` the `region` by `median` of the `dollar_per_day.`
+
+```{r}
+p <- gapminder %>% 
+    filter(year == 1970 & !is.na(gdp)) %>% 
+    mutate(dollar_per_day = gdp/population/365,
+         region = reorder(region, dollar_per_day, FUN = median)) %>% 
+  ggplot(aes(region, dollar_per_day, fill = continent))+
+  geom_boxplot()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  xlab("")
+p
+```
+
+<br> we can see from the above graph the ordered by the its median values: the top the right which are rich continents: Americas, and Europe.
+
+```{r}
+p+scale_y_continuous(trans = "log2")
+```
+
+<br> The above plot shows the differences between the countries with lower income. For example, we see a difference now between in Africa and which is red and Asia with green.
+
+Let's add data points for more better understanding of the plot.
+
+```{r}
+p +
+  scale_y_continuous(trans = "log2")+
+  geom_point(show.legend = FALSE)
+
+```
+
+<br>
+
+**Comparing Distributions**\
+Now let's explore the distribution by the group of the region.
+
+```{r}
+
+gapminder %>% 
+  filter(year == 1970& !is.na(gdp)) %>% 
+  ggplot(aes(dollar_per_day))+
+  geom_histogram(binwidth = 1, color = "red")+
+  scale_x_continuous(trans = "log2")
+  
+```
+
+<br>
+
+Now the above plot does not show about from which region of each mode of distributions.
+
+```{r}
+west <- c("Western Europe", "Northern Europe", "Southern Europe", "Northern America", "Australia and New Zealand")
+gapminder %>% 
+  filter(year == 1970& !is.na(gdp)) %>% 
+  mutate(group = ifelse(region %in%west, "West", "Developing")) %>% 
+  ggplot(aes(dollar_per_day))+
+  geom_histogram(binwidth = 1, color = "red")+
+  scale_x_continuous(trans = "log2")+
+  facet_grid(.~ group)
+```
+
+<br> The higher income regions shifted to rich and the low income to the left.
+Let's explore looking at two years.
+
+```{r}
+past_year = 1970
+present_year = 2010
+
+gapminder %>% 
+  filter(year %in% c(past_year,present_year) & !is.na(gdp)) %>% 
+  mutate(group = ifelse(region %in%west, "West", "Developing")) %>% 
+  ggplot(aes(dollar_per_day))+
+  geom_histogram(binwidth = 1, color = "red")+
+  scale_x_continuous(trans = "log2")+
+  facet_grid(year ~ group)
+```
+
+<br> The income distribution of the developing countries has gotten closer and closer to the west. Many countries registered in 2010 as compared to 1970. Because most countries was founded after 1970. And more data becomes available in 2010 as compared to 1970.
+
+Let's pull this countries which were the past and the present 1970 as baseline.
+
+```{r}
+country_list_1 <- gapminder %>% 
+  filter(year == 1970 & !is.na(dollar_per_day)) %>% 
+  pull(country)
+country_list_2 <- gapminder %>% 
+  filter(year == 2010 & !is.na(dollar_per_day)) %>% 
+  pull(country)
+
+country_list <- intersect(country_list_1, country_list_2)
+```
+
+```{r}
+gapminder %>% 
+  filter(year %in% c(past_year,present_year) & country %in% country_list) %>% 
+  mutate(group = ifelse(region %in%west, "West", "Developing")) %>% 
+  ggplot(aes(dollar_per_day))+
+  geom_histogram(binwidth = 1, color = "red")+
+  scale_x_continuous(trans = "log2")+
+  facet_grid(year ~ group)
+```
+
+<br> We now see that the poorer countries appear to have improved more. The histogram shifted more to the right than that for the rich countries. The rich countries gets more richer.
+
+```{r}
+gapminder %>% 
+  filter(year %in%c(past_year, present_year) & country %in% country_list) %>% 
+  mutate(group = ifelse(region %in%west, "West", "Developing")) %>% 
+  mutate(region = reorder(region, dollar_per_day, FUN = median)) %>% 
+  ggplot(aes(region, dollar_per_day, fill = continent))+
+  geom_boxplot()+
+  scale_y_continuous(trans = "log2")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  xlab("")+
+  facet_grid(year ~.)
+  
+
+```
+
+<br>
+
+```{r}
+
+gapminder %>% 
+  filter(year %in%c(past_year, present_year) & country %in% country_list) %>% 
+  mutate(group = ifelse(region %in%west, "West", "Developing")) %>% 
+  mutate(region = reorder(region, dollar_per_day, FUN = median)) %>% 
+  ggplot(aes(region, dollar_per_day, fill = factor(year)))+
+  geom_boxplot()+
+  scale_y_continuous(trans = "log2")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  xlab("")+
+  facet_grid(year ~.)
+
+```
+
+<br> **Density Plots**
+
+```{r}
+p <- gapminder %>% 
+  filter(year %in%c(past_year, present_year) & country %in% country_list) %>% 
+  mutate(group = ifelse(region %in%west, "West", "Developing")) %>% 
+  ggplot(aes(dollar_per_day, y = ..count.., fill = group))+
+  geom_density(alpha = 0.2, bw = 0.7)+
+  scale_x_continuous(trans = "log2")+
+  facet_grid(year ~ .)
+  
+p
+```
+
+<br>
+
+```{r}
+west <-  c("Western Europe", "Northern Europe", "Southern Europe", "Northern America", "Australia and New Zealand")
+gapminder <- gapminder %>% 
+  mutate(group = case_when(
+    .$region%in% west ~ "West",
+    .$region %in% c("Eastern Aisa", "South-Eastern Asia") ~ "East Asia",
+    .$region%in% c("Caribbean","Central America", "Sounth America" ) ~ "Latin America",
+    .$continent == "Africa"& .$region != "Northern Africa" ~ "Sub-Saharan Africa",
+    TRUE ~ "Others"
+  ))
+```
+
+```{r}
+gapminder <- gapminder %>% 
+  mutate(group = factor(group, levels = c("Others", "Latin America","East Asia", "Sub-Saharan Africa","West")))
+
+
+p <- gapminder %>% 
+  filter(year %in%c(past_year, present_year) & country %in% country_list) %>% 
+  mutate(group = ifelse(region %in%west, "West", "Developing")) %>% 
+  ggplot(aes(dollar_per_day, y = ..count.., fill = group))+
+  geom_density(alpha = 0.2, bw = 0.75, position = "stack")+
+  scale_x_continuous(trans = "log2")+
+  facet_grid(year ~ .)
+p
+```
+
+<br> Here we can see that the distribution of East Asia and Latin Americas and others shift markedly to the right while Sub-Saharan Africa remain stagnant. So that the West density was plotted first and then Sub-Saharan Africa. This helps us see the the pattern.
+
+So if most of the population is improving but living in a very large country such as China. We might not appreciate this. We can actually weigh the smooth densities using the `weight` mapping argument.
+
+```{r}
+gapminder %>% 
+  filter(year %in% c(past_year, present_year) & country %in% country_list) %>% 
+  group_by(year) %>% 
+  mutate(weight = population/sum(population)) %>% 
+  ungroup() %>% 
+  ggplot(aes(dollar_per_day, fill = group, weight = weight))+
+  scale_x_continuous(trans = "log2")+
+  geom_density(alpha = 0.2, bw = 0.75, position = "stack")+
+  facet_grid(year ~ .)
+  
+```
+
+<br> This particular figure shows very clearly shows how income distribution gap is closing with most of the poor countries remaining in Sub-Saharan Africa.
+
+**Ecological Fallacy**
+As an example for this, we will focus on the relationship between country child survival rates and average income. We start by comparing these quantifies across the regions.
+
+```{r}
+gapminder <- gapminder %>%
+    mutate(group = case_when(
+        .$region %in% west ~ "The West",
+        .$region %in% "Northern Africa" ~ "Northern Africa",
+        .$region %in% c("Eastern Asia", "South-Eastern Asia") ~ "East Asia",
+        .$region == "Southern Asia" ~ "Southern Asia",
+        .$region %in% c("Central America", "South America", "Caribbean") ~ "Latin America",
+        .$continent == "Africa" & .$region != "Northern Africa" ~ "Sub-Saharan Africa",
+        .$region %in% c("Melanesia", "Micronesia", "Polynesia") ~ "Pacific Islands"))
+
+# define a data frame with group average income and average infant survival rate
+surv_income <- gapminder %>%
+    filter(year %in% present_year & !is.na(gdp) & !is.na(infant_mortality) & !is.na(group)) %>%
+    group_by(group) %>%
+    summarize(income = sum(gdp)/sum(population)/365,
+                        infant_survival_rate = 1 - sum(infant_mortality/1000*population)/sum(population))
+surv_income %>% arrange(income)
+```
+
+```{r}
+surv_income %>% 
+  ggplot(aes(income, infant_survival_rate, label = group, color = group))+
+  scale_x_continuous(trans = "log2", limits = c(0.25,150))+
+  scale_y_continuous(trans = "logit", limits = c(0.875, 0.998),
+                     breaks = c(0.85, 0.90,0.95,0.99, 0.995,0.998))+
+  geom_label(size = 3, show.legend = FALSE)
+  
+  
+```
+
+<br> Based on the plot we showed on the above graph, do we conclude that a country with a low income is defined to have low survival rate?
+
+We showed the plot that shows only the averages is referred to as `ecological fallacy`. The almost perfect relationship between survival rates and income is only observed for the averages at the regional level.
