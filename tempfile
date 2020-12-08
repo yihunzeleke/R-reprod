@@ -36,5 +36,5 @@ str_detect(dthcause, "^D73")&!(dthcause%%"Q890") ~ "Diseases of spleen"
 str_detect(dthcause, "^D76")&!(dthcause %in% c("C960","C961","C914","C960","I896")) ~ "Certain diseases involving lymphoreticular tissue and reticulohistiocytic system",
 str_detect(dthcause, "^D84") ~ "Other immunodeficiencies",
 str_detect(dthcause, "^D86") ~ "Sacroidosis",
-str_detect(dthcause, "^D89")&!(dthcause %in% c("R771", "D472")) & str_detect(dthcause, "^T86", negate = T) ~ "Other disorders involving, not elsewhere classified" 
+str_detect(dthcause, "^D89")&!(dthcause %in% c("R771", "D472")) & str_detect(dthcause, "^T86", negate = T) ~ "Other disorders involving, not elsewhere classified",
 ```
