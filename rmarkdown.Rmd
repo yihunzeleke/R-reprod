@@ -1,0 +1,106 @@
+Put this code below in a file called example_report.Rmd
+
+---
+title: "Report for `r params$country`"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  tufte::tufte_handout:
+    latex_engine: xelatex
+params:
+  country: "country"
+  year: "year"
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{array}
+  - \usepackage{multirow}
+  - \usepackage{wrapfig}
+  - \usepackage{float}
+  - \floatplacement{figure}{H} 
+  - \usepackage{colortbl}
+  - \usepackage{pdflscape}
+  - \usepackage{tabu}
+  - \usepackage{threeparttable}
+  - \usepackage{threeparttablex}
+  - \usepackage[normalem]{ulem}
+  - \usepackage{makecell}
+  - \usepackage{xcolor}
+  - \usepackage{numprint}
+---
+
+```{r} 
+# run this to compile document
+library(dplyr)
+library(knitr)
+library(pwt10)
+library(ggplot2)
+library(modelsummary)
+
+msummary_docx <- function(...){
+
+  modelsummary(..., output = "flextable")
+
+}
+
+data("pwt10.0")
+
+dataset <- pwt10.0 %>%
+  filter(country %in% params$country,
+         year >= params$year)
+
+
+make_plot <- function(dataset, var){
+
+  ggplot(dataset) +
+    geom_line(aes(y = !!sym(var), x = year)) +
+    ggtitle(paste0("Variable: ", var))
+
+
+}
+
+
+```
+
+```{r, results="asis"}
+
+variables <- c("cgdpe",
+               "avh",
+               "rtfpna")
+
+res <- lapply(variables, function(x){
+
+  knitr::knit_child(text = c(
+
+    '## Variable: "`r x`"',
+    '```{r}',
+    'print(make_plot(dataset, x))',
+    'eval(parse(text = paste0("msummary_docx(lm(", x, " ~ ccon + pop, data = dataset))")))',
+    '```'
+
+     ),
+     envir = environment(),
+     quiet = TRUE)
+
+})
+
+
+
+cat(unlist(res), sep = "\n")
+
+```
+
+
+Put this code below in compile_reports.R, and run it to compile the documents!
+
+library(dplyr)
+
+countries <- c("Austria", "Belgium", "France", "Germany", "Denmark", "Portugal")
+
+for(i in countries){
+  rmarkdown::render(input = "example_report.Rmd",
+                    output_file = paste0("report_", i, "_", Sys.Date(), ".docx"),
+                    rmarkdown::word_document(),
+                    params = list(country = i, year = 1990))
+}
+
+# other -------
